@@ -272,7 +272,8 @@
             if (!modelo) return alert("Dados insuficientes para este grupo racial na amostra.");
 
             const coef = modelo.coeficientes;
-            const meta = modelo.meta;
+            const meta = modelo.meta_info;
+
 
             // Variáveis derivadas
             let experiencia = Math.max(0, idade - anosEstudo - 6);
