@@ -1,342 +1,141 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calculadora Salarial por Ocupação (PNADc 2025)</title>
-    
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let dadosJSON = null;
+const ARQUIVO_JSON = 'modelo_salario_ocupacao_nomes_reais.json';
 
-    <style>
-        body { background-color: #f0f2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .card { box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: none; border-radius: 12px; }
-        .header-bg { background: linear-gradient(135deg, #2c3e50, #4ca1af); color: white; padding: 3rem 0; margin-bottom: 2rem; }
-        
-        /* Estilos da Calculadora */
-        .result-box { 
-            background-color: #ffffff; 
-            border: 1px solid #dee2e6;
-            border-left: 5px solid #198754;
-            border-radius: 8px; 
-            padding: 30px; 
-            text-align: center; 
-            display: none; 
-            margin-top: 30px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            animation: fadeIn 0.6s ease-out;
-        }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+// ===============================
+// 1. CARREGA JSON
+// ===============================
+fetch(ARQUIVO_JSON)
+    .then(res => {
+        if (!res.ok) throw new Error("Arquivo JSON não encontrado");
+        return res.json();
+    })
+    .then(data => {
+        dadosJSON = data;
+        atualizarDropdownOcupacoes();
+    })
+    .catch(err => {
+        alert("Erro crítico: " + err.message);
+    });
 
-        .result-value { font-size: 3.5rem; font-weight: 800; color: #198754; letter-spacing: -1px; margin: 10px 0; }
-        .badge-uf { background-color: #e7f1ff; color: #0d6efd; padding: 6px 12px; border-radius: 30px; font-size: 0.9rem; font-weight: 700; text-transform: uppercase; }
-        .badge-modelo { background-color: #fff3cd; color: #856404; padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; margin-bottom: 10px; display: inline-block; }
+// ===============================
+// 2. DROPDOWN DE OCUPAÇÕES
+// ===============================
+function atualizarDropdownOcupacoes() {
+    if (!dadosJSON) return;
 
-        /* Inputs */
-        .form-label { font-weight: 600; color: #495057; font-size: 0.9rem; }
-        .form-select, .form-control { padding: 12px; border-radius: 8px; border: 1px solid #ced4da; }
-        .form-select:focus, .form-control:focus { box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15); border-color: #86b7fe; }
+    const select = document.getElementById('ocupacao');
+    const coef = dadosJSON.coeficientes;
 
-        /* Botão */
-        .btn-calc { padding: 15px; font-size: 1.1rem; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; transition: all 0.3s; }
-        .btn-calc:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(13, 110, 253, 0.4); }
+    let listaOcupacoes = [];
 
-        footer a { color: inherit; text-decoration: none; border-bottom: 1px dotted #6c757d; }
-    </style>
-</head>
-<body class="d-flex flex-column min-vh-100">
+    listaOcupacoes.push({ valor: "BASE", texto: "OUTRAS / OCUPAÇÕES ELEMENTARES (BASE)" });
 
-    <div class="header-bg text-center">
-        <h1 class="fw-bold display-5">📊 Simulador Salarial de Profissões</h1>
-        <p class="lead opacity-75">Baseado na PNAD Contínua 2025 (Microdados IBGE)</p>
-    </div>
+    for (let chave in coef) {
+        if (chave.startsWith('ocup_')) {
+            let texto = chave.replace('ocup_', '');
 
-    <div class="container pb-5 flex-grow-1">
-        
-        <div class="row justify-content-center">
-            <div class="col-lg-8">
-                <div class="card p-4 p-md-5">
-                    <form id="salaryForm">
-                        <div class="row g-4 mb-4">
-                            <div class="col-12"><h5 class="text-primary fw-bold border-bottom pb-2">1. Quem é você?</h5></div>
-                            
-                            <div class="col-md-6">
-                                <label class="form-label text-danger">Cor / Raça (Define o Modelo)</label>
-                                <select class="form-select border-danger" id="cor" onchange="atualizarDropdownOcupacoes()">
-                                    <option value="branca">Branca</option>
-                                    <option value="amarela">Amarela (Asiática)</option>
-                                    <option value="preta">Preta / Parda</option>
-                                    <option value="indigena">Indígena</option>
-                                </select>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label class="form-label">Gênero</label>
-                                <select class="form-select" id="sexo">
-                                    <option value="homem">Homem</option>
-                                    <option value="mulher">Mulher</option>
-                                </select>
-                            </div>
-
-                            <div class="col-md-4">
-                                <label class="form-label">Idade</label>
-                                <input type="number" class="form-control" id="idade" value="30" min="14" max="80">
-                            </div>
-
-                            <div class="col-md-4">
-                                <label class="form-label">Escolaridade</label>
-                                <select class="form-select" id="estudo">
-                                    <option value="0">Sem instrução</option>
-                                    <option value="4">Fundamental Incompleto</option>
-                                    <option value="9">Fundamental Completo</option>
-                                    <option value="12" selected>Médio Completo</option>
-                                    <option value="16">Superior Completo</option>
-                                    <option value="18">Mestrado/Doutorado</option>
-                                </select>
-                            </div>
-
-                            <div class="col-md-4">
-                                <label class="form-label">Estado (UF)</label>
-                                <select class="form-select" id="uf">
-                                    <option value="11">Rondônia</option>
-                                    <option value="12">Acre</option>
-                                    <option value="13">Amazonas</option>
-                                    <option value="14">Roraima</option>
-                                    <option value="15">Pará</option>
-                                    <option value="16">Amapá</option>
-                                    <option value="17">Tocantins</option>
-                                    <option value="21">Maranhão</option>
-                                    <option value="22">Piauí</option>
-                                    <option value="23">Ceará</option>
-                                    <option value="24">Rio G. do Norte</option>
-                                    <option value="25">Paraíba</option>
-                                    <option value="26">Pernambuco</option>
-                                    <option value="27">Alagoas</option>
-                                    <option value="28">Sergipe</option>
-                                    <option value="29">Bahia</option>
-                                    <option value="31">Minas Gerais</option>
-                                    <option value="32">Espírito Santo</option>
-                                    <option value="33">Rio de Janeiro</option>
-                                    <option value="35" selected>São Paulo</option>
-                                    <option value="41">Paraná</option>
-                                    <option value="42">Santa Catarina</option>
-                                    <option value="43">Rio G. do Sul</option>
-                                    <option value="50">Mato G. do Sul</option>
-                                    <option value="51">Mato Grosso</option>
-                                    <option value="52">Goiás</option>
-                                    <option value="53">Distrito Federal</option>
-                                </select>
-                            </div>
-                            
-                            <div class="col-12"><h5 class="text-primary fw-bold border-bottom pb-2 mt-3">2. Sua Profissão</h5></div>
-                            
-                            <div class="col-12">
-                                <label class="form-label text-success">Ocupação / Cargo (Selecione na lista)</label>
-                                <select class="form-select form-select-lg border-success" id="ocupacao">
-                                    <option value="" selected disabled>Aguardando carregamento dos dados...</option>
-                                </select>
-                                <div class="form-text">Dica: Clique na lista e digite as primeiras letras para buscar rápido.</div>
-                            </div>
-                        </div>
-
-                        <div class="d-grid mt-4">
-                            <button type="button" class="btn btn-primary btn-calc shadow" onclick="calcularSalario()">Calcular Salário Estimado</button>
-                        </div>
-                    </form>
-
-                    <div id="resultado" class="result-box">
-                        <span class="badge-modelo" id="infoModelo">...</span><br>
-                        <span class="badge-uf" id="badgeProfissao">...</span>
-                        <div class="result-value" id="valorEstimado">R$ 0,00</div>
-                        <div class="text-muted small">
-                            Margem de erro (95%): entre <strong id="faixaMin">R$ 0</strong> e <strong id="faixaMax">R$ 0</strong>
-                        </div>
-                        <div class="alert alert-light mt-3 small text-start border">
-                            <i class="bi bi-info-circle"></i> <strong>Nota Metodológica:</strong> 
-                            O cálculo considera uma jornada padrão (40h/semanais). O valor reflete a média de mercado captada pela PNAD para pessoas com seu perfil exato (Idade, Estudo, Região e Raça).
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <footer class="mt-auto py-4 bg-white border-top text-center text-secondary">
-        <div class="container">
-            <p class="mb-0 fw-bold">Projeto de Microeconometria</p>
-            <p class="small text-muted">Dados: IBGE/PNADc Fev/2025</p>
-        </div>
-    </footer>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-    <script>
-        let dadosJSON = null;
-        const ARQUIVO_JSON = 'modelo_salario_ocupacao_nomes_reais.json'; // Nome do arquivo gerado pelo Python
-
-        // 1. CARREGAR JSON AO INICIAR
-        fetch(ARQUIVO_JSON)
-            .then(res => {
-                if(!res.ok) throw new Error("Arquivo JSON não encontrado!");
-                return res.json();
-            })
-            .then(data => {
-                dadosJSON = data;
-                console.log("Dados carregados com sucesso.");
-                atualizarDropdownOcupacoes(); // Popula a lista assim que carrega
-            })
-            .catch(err => {
-                alert("Erro crítico: " + err.message + "\nVerifique se o arquivo .json está na mesma pasta.");
-                document.getElementById('ocupacao').innerHTML = '<option>Erro ao carregar dados</option>';
-            });
-
-        // 2. FUNÇÃO PARA POPULAR O DROPDOWN DE OCUPAÇÕES
-        function atualizarDropdownOcupacoes() {
-            if (!dadosJSON) return;
-
-            const select = document.getElementById('ocupacao');
-            const grupoRaca = document.getElementById('cor').value; // 'branca', 'preta', etc.
-            
-            // Tenta pegar o modelo da raça selecionada, se não tiver (ex: amarela as vezes é pequena), pega da branca como fallback para a lista
-            let modeloBase = dadosJSON[grupoRaca] || dadosJSON['branca'];
-            
-            if (!modeloBase) return;
-
-            // Extrai todas as chaves que começam com "ocup_"
-            const coeficientes = modeloBase.coeficientes;
-            let listaOcupacoes = [];
-
-            // Adiciona opção "Outras / Não especificado" (Base)
-            listaOcupacoes.push({ valor: "BASE", texto: "OUTRAS / OCUPAÇÕES ELEMENTARES (BASE)" });
-
-            for (let chave in coeficientes) {
-                if (chave.startsWith('ocup_')) {
-                    // Formato da chave: "ocup_2231 - MÉDICOS"
-                    // Vamos tentar deixar o texto mais limpo para o usuário
-                    let textoExibicao = chave.replace('ocup_', ''); 
-                    
-                    // Se tiver separador " - ", inverte para ficar "NOME (CÓDIGO)" que é melhor de ler
-                    if (textoExibicao.includes(' - ')) {
-                        let partes = textoExibicao.split(' - ');
-                        let codigo = partes[0];
-                        let nome = partes[1];
-                        textoExibicao = `${nome} (Cód. ${codigo})`;
-                    }
-
-                    listaOcupacoes.push({
-                        valor: chave, // A chave original do JSON para usarmos no cálculo
-                        texto: textoExibicao
-                    });
-                }
+            if (texto.includes(' - ')) {
+                let [codigo, nome] = texto.split(' - ');
+                texto = `${nome} (Cód. ${codigo})`;
             }
 
-            // Ordena alfabeticamente pelo nome da profissão
-            listaOcupacoes.sort((a, b) => a.texto.localeCompare(b.texto));
-
-            // Limpa e preenche o select
-            select.innerHTML = '';
-            select.disabled = false;
-            
-            // Adiciona placeholder
-            let optDefault = document.createElement('option');
-            optDefault.text = "Selecione sua profissão...";
-            optDefault.value = "";
-            optDefault.disabled = true;
-            optDefault.selected = true;
-            select.add(optDefault);
-
-            listaOcupacoes.forEach(oc => {
-                let opt = document.createElement('option');
-                opt.value = oc.valor;
-                opt.text = oc.texto;
-                select.add(opt);
-            });
+            listaOcupacoes.push({ valor: chave, texto });
         }
+    }
 
-        // 3. CÁLCULO DO SALÁRIO
-        function calcularSalario() {
-            if (!dadosJSON) return alert("Aguarde, carregando dados...");
+    listaOcupacoes.sort((a, b) => a.texto.localeCompare(b.texto));
 
-            // Coleta Inputs
-            const raca = document.getElementById('cor').value;
-            const idade = parseFloat(document.getElementById('idade').value);
-            const anosEstudo = parseFloat(document.getElementById('estudo').value);
-            const sexo = document.getElementById('sexo').value;
-            const uf = document.getElementById('uf').value;
-            const ocupacaoChave = document.getElementById('ocupacao').value;
+    select.innerHTML = '';
+    select.disabled = false;
 
-            if (!ocupacaoChave) return alert("Por favor, selecione uma profissão.");
+    let optDefault = document.createElement('option');
+    optDefault.text = "Selecione sua profissão...";
+    optDefault.value = "";
+    optDefault.disabled = true;
+    optDefault.selected = true;
+    select.add(optDefault);
 
-            // Pega o modelo correto
-            const modelo = dadosJSON[raca];
-            if (!modelo) return alert("Dados insuficientes para este grupo racial na amostra.");
+    listaOcupacoes.forEach(o => {
+        let opt = document.createElement('option');
+        opt.value = o.valor;
+        opt.text = o.texto;
+        select.add(opt);
+    });
+}
 
-            const coef = modelo.coeficientes;
-            const meta = modelo.meta_info;
+// ===============================
+// 3. CÁLCULO DO SALÁRIO
+// ===============================
+function calcularSalario() {
+    if (!dadosJSON) return alert("Aguarde o carregamento dos dados");
 
+    const raca = document.getElementById('cor').value;
+    const idade = +document.getElementById('idade').value;
+    const anosEstudo = +document.getElementById('estudo').value;
+    const sexo = document.getElementById('sexo').value;
+    const uf = document.getElementById('uf').value;
+    const ocupacao = document.getElementById('ocupacao').value;
 
-            // Variáveis derivadas
-            let experiencia = Math.max(0, idade - anosEstudo - 6);
-            let experiencia2 = experiencia * experiencia;
+    if (!ocupacao) return alert("Selecione uma profissão");
 
-            // --- EQUAÇÃO DE MINCER ---
-            let lnSalario = coef['Intercepto']; 
+    const coef = dadosJSON.coeficientes;
+    const meta = dadosJSON.meta_info;
 
-            // Adiciona Controles Básicos
-            if(coef['Anos_Estudo']) lnSalario += coef['Anos_Estudo'] * anosEstudo;
-            if(coef['Experiencia']) lnSalario += coef['Experiencia'] * experiencia;
-            if(coef['Experiencia_2']) lnSalario += coef['Experiencia_2'] * experiencia2;
-            
-            if (sexo === 'mulher' && coef['d_mulher']) lnSalario += coef['d_mulher'];
-            if (coef[`UF_${uf}`]) lnSalario += coef[`UF_${uf}`];
-            if (coef['IMR']) lnSalario += coef['IMR'] * 0.6; // Correção de viés
+    let experiencia = Math.max(0, idade - anosEstudo - 6);
+    let experiencia2 = experiencia ** 2;
 
-            // --- ADICIONA O PRÊMIO DA OCUPAÇÃO ---
-            // Se o usuário escolheu "BASE", não somamos nada (pois é a referência)
-            // Se escolheu uma ocupação específica, somamos o coeficiente dela
-            if (ocupacaoChave !== "BASE") {
-                // Verifica se essa ocupação existe especificamente para essa raça
-                // (Pode acontecer de existir na lista geral mas não ter amostra para indígenas, por exemplo)
-                if (coef[ocupacaoChave]) {
-                    lnSalario += coef[ocupacaoChave];
-                } else {
-                    console.warn(`A ocupação ${ocupacaoChave} não tem coeficiente para o grupo ${raca}. Usando valor base.`);
-                    // Opcional: Avisar o usuário que estamos usando a média geral
-                }
-            }
+    // -------- MINCER --------
+    let lnSalario = coef['Intercepto'];
 
-            // Transforma Log -> Reais
-            // A constante 180 representa aprox horas mensais (40h sem * 4.5 sem)
-            let salarioEstimado = Math.exp(lnSalario) * 180; 
-            
-            // Intervalo de Confiança (Erro Padrão do Modelo)
-            // Se o sigma não vier no meta, usamos um padrão conservador de 0.65
-            let sigma = meta.sigma_log; // Valor padrão para Mincer no Brasil
-            
-            // Limites (95% confiança)
-            let min = Math.exp(lnSalario - 1.96 * sigma) * 180;
-            let max = Math.exp(lnSalario + 1.96 * sigma) * 180;
+    if (coef['Anos_Estudo']) lnSalario += coef['Anos_Estudo'] * anosEstudo;
+    if (coef['Experiencia']) lnSalario += coef['Experiencia'] * experiencia;
+    if (coef['Experiencia_2']) lnSalario += coef['Experiencia_2'] * experiencia2;
 
-            // Atualiza a Interface
-            const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-            
-            document.getElementById('valorEstimado').innerText = fmt.format(salarioEstimado);
-            document.getElementById('faixaMin').innerText = fmt.format(min);
-            document.getElementById('faixaMax').innerText = fmt.format(max);
-            
-            // Textos auxiliares
-            const nomesRaca = { 'branca': 'População Branca', 'amarela': 'População Amarela', 'preta': 'População Preta/Parda', 'indigena': 'População Indígena' };
-            document.getElementById('infoModelo').innerText = `Modelo Estatístico: ${nomesRaca[raca]} (N=${meta.N})`;
-            
-            const selOcup = document.getElementById('ocupacao');
-            const nomeProfissao = selOcup.options[selOcup.selectedIndex].text.split('(')[0];
-            document.getElementById('badgeProfissao').innerText = nomeProfissao; // Mostra nome da profissão no badge
+    // Dummy mulher
+    if (sexo === 'mulher' && coef['d_mulher']) {
+        lnSalario += coef['d_mulher'];
+    }
 
-            // Exibe resultado com animação
-            const box = document.getElementById('resultado');
-            box.style.display = 'block';
-            box.scrollIntoView({ behavior: 'smooth' });
-        }
-    </script>
-</body>
-</html>
+    // Dummy racial (base = branca)
+    if (raca === 'preta' && coef['d_preto_pardo']) {
+        lnSalario += coef['d_preto_pardo'];
+    }
+
+    if (coef[`UF_${uf}`]) lnSalario += coef[`UF_${uf}`];
+    if (coef['IMR']) lnSalario += coef['IMR'] * 0.6;
+
+    if (ocupacao !== "BASE" && coef[ocupacao]) {
+        lnSalario += coef[ocupacao];
+    }
+
+    // Log → R$
+    let salario = Math.exp(lnSalario) * 180;
+    let sigma = meta.sigma_log || 0.65;
+
+    let min = Math.exp(lnSalario - 1.96 * sigma) * 180;
+    let max = Math.exp(lnSalario + 1.96 * sigma) * 180;
+
+    const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    document.getElementById('valorEstimado').innerText = fmt.format(salario);
+    document.getElementById('faixaMin').innerText = fmt.format(min);
+    document.getElementById('faixaMax').innerText = fmt.format(max);
+
+    const nomesRaca = {
+        branca: 'População Branca',
+        amarela: 'População Amarela',
+        preta: 'População Preta/Parda',
+        indigena: 'População Indígena'
+    };
+
+    document.getElementById('infoModelo').innerText =
+        `Modelo Estatístico: ${nomesRaca[raca]} (N=${meta.N})`;
+
+    const sel = document.getElementById('ocupacao');
+    document.getElementById('badgeProfissao').innerText =
+        sel.options[sel.selectedIndex].text.split('(')[0];
+
+    document.getElementById('resultado').style.display = 'block';
+}
+</script>
