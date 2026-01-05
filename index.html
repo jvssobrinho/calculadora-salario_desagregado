@@ -310,7 +310,7 @@
             
             // Intervalo de Confiança (Erro Padrão do Modelo)
             // Se o sigma não vier no meta, usamos um padrão conservador de 0.65
-            let sigma = 0.65; // Valor padrão para Mincer no Brasil
+            let sigma = meta.sigma_log; // Valor padrão para Mincer no Brasil
             
             // Limites (95% confiança)
             let min = Math.exp(lnSalario - 1.96 * sigma) * 180;
