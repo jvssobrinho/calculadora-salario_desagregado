@@ -315,6 +315,13 @@
     // Calculamos os limites AINDA NO MUNDO DO LOG
             let logMin = lnSalario - (1.96 * sigma);
             let logMax = lnSalario + (1.96 * sigma);
+
+            let min = Math.exp(logMin) * 180;
+            let max = Math.exp(logMax) * 180;
+
+            if (min < 1518) min = 1518; // Trava do salário mínimo
+
+// ------------------------------------------------
             
             // Limites (95% confiança
 
